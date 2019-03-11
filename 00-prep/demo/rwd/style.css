@@ -1,0 +1,18 @@
+div {
+  height: 300px;
+  border: solid 1px black;
+  background: green;
+  box-sizing: border-box; 
+}   
+
+@media (min-width: 768px) {
+  /* I can contain the divs */
+  section {
+    width: 2000;
+  }
+  
+  div {
+    float: left;
+    width: 200px;
+  }
+}
