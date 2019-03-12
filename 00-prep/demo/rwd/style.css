@@ -1,7 +1,7 @@
 div {
   height: 300px;
-  border: solid 1px black;
-  background: green;
+  border: solid 2px black;
+  background: #888;
   box-sizing: border-box; 
 }   
 
