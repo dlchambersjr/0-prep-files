@@ -2,7 +2,7 @@
 
 let __API_URL__;
 
-$('#url-form').on('submit', function(event) {
+$('#url-form').on('submit', function (event) {
   event.preventDefault();
   __API_URL__ = $('#back-end-url').val();
   $('#url-form').addClass('hide');
@@ -18,7 +18,7 @@ function fetchCityData(event) {
   $.ajax({
     url: `${__API_URL__}/location`,
     method: 'GET',
-    data: {data: searchQuery}
+    data: { data: searchQuery }
   })
     .then(location => {
       displayMap(location);
@@ -42,11 +42,11 @@ function displayMap(location) {
   $('section, div').removeClass('hide');
 
   $('#map').attr('src', `https://maps.googleapis.com/maps/api/staticmap?center=${location.latitude}%2c%20${location.longitude}&zoom=13&size=600x300&maptype=roadmap
-  &key=AIzaSyDp0Caae9rkHUHwERAFzs6WN4_MuphTimk`);
+  &key=${SPECIAL}`);
 }
 
 function getResource(resource, location) {
-  $.get(`${__API_URL__}/${resource }`, {data: location})
+  $.get(`${__API_URL__}/${resource}`, { data: location })
     .then(result => {
       renderTimeTemplate(result[0], `${resource}-results`);
       compileTemplate(result, `${resource}-results`, `${resource}-results-template`);
@@ -70,7 +70,7 @@ function renderTimeTemplate(input, sectionClass) {
   $(`.${sectionClass}`).parent().find('p').remove();
 
   let time = {
-    'date-age' : calculateAge(input.created_at)
+    'date-age': calculateAge(input.created_at)
   };
 
   let template = Handlebars.compile($('#time-template').text());
@@ -78,7 +78,7 @@ function renderTimeTemplate(input, sectionClass) {
   $(`.${sectionClass}`).before(template(time));
 }
 
-function calculateAge(created_at){
+function calculateAge(created_at) {
   let age = Date.now() - created_at;
   if (age > 86400000) {
     return `Updated : ${Math.floor(age / (86400000))} days ago`;
@@ -89,7 +89,7 @@ function calculateAge(created_at){
   if (age > 60000) {
     return `Updated : ${Math.floor(age / (60000))} minutes ago`;
   }
-  if(age > 1000){
+  if (age > 1000) {
     return `Updated : ${Math.floor(age / (1000))} seconds ago`;
   }
   return 'Just updated';
