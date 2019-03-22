@@ -92,7 +92,10 @@ function getData(sqlInfo) {
 // NOTE: the names are singular so they can be dynamically used
 // The weather timeout MUST be 15 seconds for this lab. You can change
 // The others as you see fit... or not.
+const SQL = `INSERT INTO ${this.tableName} (name, location, length, stars, star_votes, summary, trail_url, conditions, condition_date, condition_time, created_at, location_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12);`;
+const values = [this.name, this.location, this.length, this.stars, this.star_votes, this.summary, this.trail_url, this.conditions, this.condition_date, this.condition_time, this.created_at, location_id];
 
+client.query(SQL, values);
 const timeouts = {
   weather: 15 * 1000, // 15-seconds
   yelp: 24 * 1000 * 60 * 60, // 24-Hours
@@ -181,8 +184,6 @@ function getYelp(request, response) {
       else {
         const url = `https://api.yelp.com/v3/businesses/search?location=${request.query.data.search_query}`;
 
-        console.log('yelp', url);
-
         superagent.get(url)
           .set('Authorization', `Bearer ${process.env.YELP_API_KEY}`)
           .then(yelpResults => {
@@ -223,8 +224,6 @@ function getMeetups(request, response) {
       else {
         const url = `https://api.meetup.com/find/upcoming_events?&sign=true&photo-host=public&lon=${request.query.data.longitude}&page=20&lat=${request.query.data.latitude}&key=${process.env.MEETUP_API_KEY}`;
 
-        console.log('meetups', url);
-
         superagent.get(url)
           .then(result => {
             const meetups = result.body.events.map(meetup => {
@@ -262,8 +261,6 @@ function getMovies(request, response) {
       else {
         const url = `https://api.themoviedb.org/3/search/movie/?api_key=${process.env.MOVIE_API_KEY}&language=en-US&page=1&query=${request.query.data.search_query}`;
 
-        console.log('movies', url);
-
         superagent.get(url)
           .then(result => {
             const movieSummaries = result.body.results.map(movie => {
@@ -300,8 +297,6 @@ function getTrails(request, response) {
       if (result) { response.send(result.rows) }
       else {
         const url = `https://www.hikingproject.com/data/get-trails?lat=${request.query.data.latitude}&lon=${request.query.data.longitude}&maxDistance=200&key=${process.env.HIKING_API_KEY}`;
-
-        console.log('trails', url);
 
         superagent.get(url)
           .then(result => {
@@ -387,7 +382,3 @@ function Trail(trail) {
   this.condition_time = trail.conditionDate.slice(12);
   this.created_at = Date.now();
 }
-
-
-
-
