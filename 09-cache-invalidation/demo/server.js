@@ -36,19 +36,9 @@ function handleError(err, res) {
 
 // Helper Functions and Data Models
 
-// Establish the length of time to keep data for each resource
-const timeouts = {
-  weather: 15 * 1000,
-  yelp: 24 * 1000 * 60 * 60,
-  movie: 30 * 1000 * 60 * 60 * 24,
-  meetup: 6 * 1000 * 60 * 60,
-  trail: 7 * 1000 * 60 * 60 * 24
-};
-
-// Lookup the location
+// Lookup the location information
 function searchToLatLong(request, response) {
   let query = request.query.data;
-
   let sql = `SELECT * FROM locations WHERE search_query=$1;`
   let values = [query];
 
@@ -82,39 +72,53 @@ function searchToLatLong(request, response) {
     })
 }
 
-// Used for getting data from multiple resources
+//TODO: Get the SQL data for the requested resource
 function getData(sqlInfo) {
   let sql = `SELECT * FROM ${sqlInfo.endpoint}s WHERE location_id=$1;`
   let values = [sqlInfo.id];
+
+  console.log('GETTING DATA FOR: ', sqlInfo.endpoint); //Debugging only
 
   // Return the data
   try { return client.query(sql, values); }
   catch (error) { handleError(error) }
 }
 
+// TODO: Establish the length of time to keep data for each resource
+// NOTE: the names are singular for
+const timeouts = {
+  weather: 15 * 1000,
+  yelp: 24 * 1000 * 60 * 60,
+  movie: 30 * 1000 * 60 * 60 * 24,
+  meetup: 6 * 1000 * 60 * 60,
+  trail: 7 * 1000 * 60 * 60 * 24
+};
+
+// Check to see if the data is still valid
 function checkTimeouts(sqlInfo, sqlData) {
-  console.log('row count = ', sqlData.rowCount)
+
+  // if there is data, find out how old it is.
   if (sqlData.rowCount > 0) {
-    // find out how old the data is
     let ageOfResults = (Date.now() - sqlData.rows[0].created_at);
 
-    console.log('WEATHER AGE:', ageOfResults);
-    console.log('WEATHER Timeout:', timeouts.weather);
+    // For debugging only
+    console.log(sqlInfo.endpoint, ' AGE:', ageOfResults);
+    console.log(sqlInfo.endpoint, ' Timeout:', timeouts[sqlInfo.endpoint]);
 
     // Compare the age of the results with the timeout value
+    // Delete the data if it is old
     if (ageOfResults > timeouts[sqlInfo.endpoint]) {
       let sql = `DELETE FROM ${sqlInfo.endpoint}s WHERE location_id=$1;`;
       let values = [sqlInfo.id];
       client.query(sql, values)
-      return;
-    }
-  } else { return sqlData }
+        .then(() => { return null; })
+        .catch(error => handleError(error));
+    } else { return sqlData }
+  }
 }
 
 // Retrieve the Weather based on location
 function getWeather(request, response) {
-  console.log('GETWEATHER');
-
   //Create an object to hold the SQL query info
   let sqlInfo = {
     id: request.query.data.id,
@@ -122,36 +126,32 @@ function getWeather(request, response) {
   }
 
   getData(sqlInfo)
-    .then(data => {
-      try {
-        let result = checkTimeouts(sqlInfo, data);
-        console.log('Result', result);
-        if (result.rows.length) { response.send(result.rows) }
-        else {
-          const url = `https://api.darksky.net/forecast/${process.env.WEATHER_API_KEY}/${request.query.data.latitude},${request.query.data.longitude}`;
+    .then(data => checkTimeouts(sqlInfo, data))
+    .then(result => {
+      // console.log(sqlInfo.endpoint, 'Result:', result.rows);
+      if (result) { response.send(result.rows) }
+      else {
+        const url = `https://api.darksky.net/forecast/${process.env.WEATHER_API_KEY}/${request.query.data.latitude},${request.query.data.longitude}`;
 
-          superagent.get(url)
-            .then(weatherResults => {
-              console.log('Weather Rows = ', weatherResults.body.daily.data.length);
-              if (!weatherResults.body.daily.data.length) { throw 'NO DATA'; }
-              else {
-                const weatherSummaries = weatherResults.body.daily.data.map(day => {
-                  let summary = new Weather(day);
-                  summary.id = sqlInfo.id;
+        superagent.get(url)
+          .then(weatherResults => {
+            console.log('Weather Rows = ', weatherResults.body.daily.data.length);
+            if (!weatherResults.body.daily.data.length) { throw 'NO DATA'; }
+            else {
+              const weatherSummaries = weatherResults.body.daily.data.map(day => {
+                let summary = new Weather(day);
+                summary.id = sqlInfo.id;
 
-                  let newSql = `INSERT INTO weathers (forecast, time, created_at, location_id) VALUES($1, $2, $3, $4);`;
-                  let newValues = Object.values(summary);
-                  client.query(newSql, newValues);
+                let newSql = `INSERT INTO weathers (forecast, time, created_at, location_id) VALUES($1, $2, $3, $4);`;
+                let newValues = Object.values(summary);
+                client.query(newSql, newValues);
 
-                  return summary;
-                });
-                response.send(weatherSummaries);
-              }
-            });
-        }
-
-      } catch (error) { handleError(error) }
-
+                return summary;
+              });
+              response.send(weatherSummaries);
+            }
+          });
+      }
     })
     .catch(error => handleError(error));
 }
