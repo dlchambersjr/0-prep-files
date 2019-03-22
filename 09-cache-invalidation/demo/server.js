@@ -85,16 +85,19 @@ function getData(sqlInfo) {
 }
 
 // TODO: Establish the length of time to keep data for each resource
-// NOTE: the names are singular for
+// NOTE: the names are singular so they can dynamically used
+// The weather timeout MUST be 15 seconds for this lab. You can change
+// The others as you see fit... or not.
+
 const timeouts = {
-  weather: 15 * 1000,
-  yelp: 24 * 1000 * 60 * 60,
-  movie: 30 * 1000 * 60 * 60 * 24,
-  meetup: 6 * 1000 * 60 * 60,
-  trail: 7 * 1000 * 60 * 60 * 24
+  weather: 15 * 1000, // 15-seconds
+  yelp: 24 * 1000 * 60 * 60, // 24-Hours
+  movie: 30 * 1000 * 60 * 60 * 24, // 30-Days
+  meetup: 6 * 1000 * 60 * 60, // 6-Hours
+  trail: 7 * 1000 * 60 * 60 * 24 // 7-Days
 };
 
-// Check to see if the data is still valid
+// TODO: Check to see if the data is still valid
 function checkTimeouts(sqlInfo, sqlData) {
 
   // if there is data, find out how old it is.
@@ -119,29 +122,31 @@ function checkTimeouts(sqlInfo, sqlData) {
 
 // Retrieve the Weather based on location
 function getWeather(request, response) {
-  //Create an object to hold the SQL query info
+
+  // TODO: Create an object to hold the SQL query info
   let sqlInfo = {
     id: request.query.data.id,
     endpoint: 'weather',
   }
 
+  // TODO: Get the Data and process it
   getData(sqlInfo)
     .then(data => checkTimeouts(sqlInfo, data))
     .then(result => {
-      // console.log(sqlInfo.endpoint, 'Result:', result.rows);
       if (result) { response.send(result.rows) }
       else {
         const url = `https://api.darksky.net/forecast/${process.env.WEATHER_API_KEY}/${request.query.data.latitude},${request.query.data.longitude}`;
 
         superagent.get(url)
           .then(weatherResults => {
-            console.log('Weather Rows = ', weatherResults.body.daily.data.length);
             if (!weatherResults.body.daily.data.length) { throw 'NO DATA'; }
             else {
+              // Process the data through the constructor to be returned to the client
               const weatherSummaries = weatherResults.body.daily.data.map(day => {
                 let summary = new Weather(day);
                 summary.id = sqlInfo.id;
 
+                // Insert into SQL database
                 let newSql = `INSERT INTO weathers (forecast, time, created_at, location_id) VALUES($1, $2, $3, $4);`;
                 let newValues = Object.values(summary);
                 client.query(newSql, newValues);
@@ -167,5 +172,5 @@ function Location(query, location) {
 function Weather(day) {
   this.forecast = day.summary;
   this.time = new Date(day.time * 1000).toString().slice(0, 15);
-  this.created_at = Date.now();
+  this.created_at = Date.now(); //TODO: Don't forget to update the schema.sql file
 }
