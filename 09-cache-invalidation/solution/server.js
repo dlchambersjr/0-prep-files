@@ -24,6 +24,10 @@ client.on('error', err => console.error(err));
 // API Routes
 app.get('/location', searchToLatLong);
 app.get('/weather', getWeather);
+app.get('/yelp', getYelp);
+// app.get('/movies', getMovies);
+// app.get('/meetups', getMeetups);
+// app.get('/trails', getTrails);
 
 // Make sure the server is listening for requests
 app.listen(PORT, () => console.log(`City Explorer Backend is up on ${PORT}`));
@@ -161,6 +165,47 @@ function getWeather(request, response) {
     .catch(error => handleError(error));
 }
 
+function getYelp(request, response) {
+
+  // TODO: Create an object to hold the SQL query info
+  let sqlInfo = {
+    id: request.query.data.id,
+    endpoint: 'yelp',
+  }
+
+  // TODO: Get the Data and process it
+  getData(sqlInfo)
+    .then(data => checkTimeouts(sqlInfo, data))
+    .then(result => {
+      if (result) { response.send(result.rows) }
+      else {
+        const url = `https://api.yelp.com/v3/businesses/search?location=${request.query.data.search_query}`;
+
+        console.log('yelp', url);
+
+        superagent.get(url)
+          .set('Authorization', `Bearer ${process.env.YELP_API_KEY}`)
+          .then(yelpResults => {
+            if (!yelpResults.body.businesses.length) { throw 'NO DATA'; }
+            else {
+              const yelpSummaries = yelpResults.body.businesses.map(business => {
+                let review = new Yelp(business);
+                review.id = sqlInfo.id;
+
+                let sql = `INSERT INTO yelps (name, image_url, price, rating, url, created_at, location_id) VALUES ($1, $2, $3, $4, $5, $6, $7);`;
+                console.log('line 196', review);
+                let values = Object.values(review);
+                client.query(sql, values);
+
+                return review;
+              });
+              response.send(yelpSummaries);
+            }
+          });
+      }
+    })
+    .catch(error => handleError(error));
+}
 // Data Models
 function Location(query, location) {
   this.search_query = query;
@@ -174,3 +219,53 @@ function Weather(day) {
   this.time = new Date(day.time * 1000).toString().slice(0, 15);
   this.created_at = Date.now(); //TODO: Don't forget to update the schema.sql file
 }
+
+function Yelp(business) {
+  // this.tableName = 'yelps';
+  this.name = business.name;
+  this.image_url = business.image_url;
+  this.price = business.price;
+  this.rating = business.rating;
+  this.url = business.url;
+  this.created_at = Date.now();
+}
+
+function Meetup(meetup) {
+  // this.tableName = 'meetups';
+  this.link = meetup.link;
+  this.name = meetup.group.name;
+  this.creation_date = new Date(meetup.group.created).toString().slice(0, 15);
+  this.host = meetup.group.who;
+  this.created_at = Date.now();
+}
+
+function Movie(movie) {
+  // this.tableName = 'movies';
+  this.title = movie.title;
+  this.overview = movie.overview;
+  this.average_votes = movie.vote_average;
+  this.total_votes = movie.vote_count;
+  this.image_url = 'https://image.tmdb.org/t/p/w500' + movie.poster_path;
+  this.popularity = movie.popularity;
+  this.released_on = movie.release_date;
+  this.created_at = Date.now();
+}
+
+function Trail(trail) {
+  // this.tableName = 'trails';
+  this.name = trail.name;
+  this.location = trail.location;
+  this.length = trail.length;
+  this.stars = trail.stars;
+  this.star_votes = trail.starVotes;
+  this.summary = trail.summary;
+  this.trail_url = trail.url;
+  this.conditions = trail.conditionDetails;
+  this.condition_date = trail.conditionDate.slice(0, 10);
+  this.condition_time = trail.conditionDate.slice(12);
+  this.created_at = Date.now();
+}
+
+
+
+
