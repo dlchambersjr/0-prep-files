@@ -36,6 +36,7 @@ function handleError(err, res) {
 
 // Helper Functions and Data Models
 
+// Establish the length of time to keep data for each resource
 const timeouts = {
   weather: 15 * 1000,
   yelp: 24 * 1000 * 60 * 60,
@@ -85,14 +86,14 @@ function searchToLatLong(request, response) {
 function getData(sqlInfo) {
   let sql = `SELECT * FROM ${sqlInfo.endpoint}s WHERE location_id=$1;`
   let values = [sqlInfo.id];
-  console.log(sql, values);
-  // wraps the SQL query in a promise
-  client.query(sql, values)
-    .then(apiResult => { return apiResult })
+
+  // Return the data
+  try { return client.query(sql, values); }
+  catch (error) { handleError(error) }
 }
 
 function checkTimeouts(sqlInfo, sqlData) {
-  console.log('row count', sqlData.rowCount)
+  console.log('row count = ', sqlData.rowCount)
   if (sqlData.rowCount > 0) {
     // find out how old the data is
     let ageOfResults = (Date.now() - sqlData.rows[0].created_at);
@@ -122,17 +123,16 @@ function getWeather(request, response) {
 
   getData(sqlInfo)
     .then(data => {
-      console.log('line 124 data', data.rows);
       try {
         let result = checkTimeouts(sqlInfo, data);
-        console.log('line 127 cache result', result);
-
+        console.log('Result', result);
         if (result.rows.length) { response.send(result.rows) }
         else {
           const url = `https://api.darksky.net/forecast/${process.env.WEATHER_API_KEY}/${request.query.data.latitude},${request.query.data.longitude}`;
 
           superagent.get(url)
             .then(weatherResults => {
+              console.log('Weather Rows = ', weatherResults.body.daily.data.length);
               if (!weatherResults.body.daily.data.length) { throw 'NO DATA'; }
               else {
                 const weatherSummaries = weatherResults.body.daily.data.map(day => {
