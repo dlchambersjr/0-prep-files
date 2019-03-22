@@ -26,7 +26,7 @@ app.get('/location', searchToLatLong);
 app.get('/weather', getWeather);
 app.get('/yelp', getYelp);
 app.get('/meetups', getMeetups);
-// app.get('/movies', getMovies);
+app.get('/movies', getMovies);
 // app.get('/trails', getTrails);
 
 // Make sure the server is listening for requests
@@ -188,7 +188,7 @@ function getYelp(request, response) {
           .then(yelpResults => {
             if (!yelpResults.body.businesses.length) { throw 'NO DATA'; }
             else {
-              const yelpSummaries = yelpResults.body.businesses.map(business => {
+              const yelpReviews = yelpResults.body.businesses.map(business => {
                 let review = new Yelp(business);
                 review.id = sqlInfo.id;
 
@@ -199,7 +199,7 @@ function getYelp(request, response) {
 
                 return review;
               });
-              response.send(yelpSummaries);
+              response.send(yelpReviews);
             }
           });
       }
@@ -242,6 +242,45 @@ function getMeetups(request, response) {
             response.send(meetups);
           })
           .catch(error => handleError(error));
+      }
+    })
+}
+
+function getMovies(request, response) {
+
+  // TODO: Create an object to hold the SQL query info
+  let sqlInfo = {
+    id: request.query.data.id,
+    endpoint: 'movie',
+  }
+
+  // TODO: Get the Data and process it
+  getData(sqlInfo)
+    .then(data => checkTimeouts(sqlInfo, data))
+    .then(result => {
+      if (result) { response.send(result.rows) }
+      else {
+        const url = `https://api.themoviedb.org/3/search/movie/?api_key=${process.env.MOVIE_API_KEY}&language=en-US&page=1&query=${request.query.data.search_query}`;
+
+        console.log('movies', url);
+
+        superagent.get(url)
+          .then(result => {
+            const movieSummaries = result.body.results.map(movie => {
+              const summary = new Movie(movie);
+              summary.id = sqlInfo.id;
+
+              const SQL = `INSERT INTO movies (title, overview, average_votes, total_votes, image_url, popularity, released_on, created_at, location_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);`;
+              const values = Object.values(summary);
+
+              client.query(SQL, values);
+
+              return summary;
+            });
+
+            response.send(movieSummaries);
+          })
+          .catch(error => handleError(error, response));
       }
     })
 }
