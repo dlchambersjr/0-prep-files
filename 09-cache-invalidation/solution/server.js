@@ -25,8 +25,8 @@ client.on('error', err => console.error(err));
 app.get('/location', searchToLatLong);
 app.get('/weather', getWeather);
 app.get('/yelp', getYelp);
+app.get('/meetups', getMeetups);
 // app.get('/movies', getMovies);
-// app.get('/meetups', getMeetups);
 // app.get('/trails', getTrails);
 
 // Make sure the server is listening for requests
@@ -89,7 +89,7 @@ function getData(sqlInfo) {
 }
 
 // TODO: Establish the length of time to keep data for each resource
-// NOTE: the names are singular so they can dynamically used
+// NOTE: the names are singular so they can be dynamically used
 // The weather timeout MUST be 15 seconds for this lab. You can change
 // The others as you see fit... or not.
 
@@ -193,7 +193,7 @@ function getYelp(request, response) {
                 review.id = sqlInfo.id;
 
                 let sql = `INSERT INTO yelps (name, image_url, price, rating, url, created_at, location_id) VALUES ($1, $2, $3, $4, $5, $6, $7);`;
-                console.log('line 196', review);
+
                 let values = Object.values(review);
                 client.query(sql, values);
 
@@ -206,6 +206,46 @@ function getYelp(request, response) {
     })
     .catch(error => handleError(error));
 }
+
+function getMeetups(request, response) {
+
+  // TODO: Create an object to hold the SQL query info
+  let sqlInfo = {
+    id: request.query.data.id,
+    endpoint: 'meetup',
+  }
+
+  // TODO: Get the Data and process it
+  getData(sqlInfo)
+    .then(data => checkTimeouts(sqlInfo, data))
+    .then(result => {
+      if (result) { response.send(result.rows) }
+      else {
+        const url = `https://api.meetup.com/find/upcoming_events?&sign=true&photo-host=public&lon=${request.query.data.longitude}&page=20&lat=${request.query.data.latitude}&key=${process.env.MEETUP_API_KEY}`;
+
+        console.log('meetups', url);
+
+        superagent.get(url)
+          .then(result => {
+            const meetups = result.body.events.map(meetup => {
+              const event = new Meetup(meetup);
+
+              event.id = sqlInfo.id;
+
+              const SQL = `INSERT INTO meetups (link, name, creation_date, host, created_at, location_id) VALUES ($1, $2, $3, $4, $5, $6);`;
+              const values = Object.values(event);
+
+              client.query(SQL, values);
+
+              return event;
+            });
+            response.send(meetups);
+          })
+          .catch(error => handleError(error));
+      }
+    })
+}
+
 // Data Models
 function Location(query, location) {
   this.search_query = query;
