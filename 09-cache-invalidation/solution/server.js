@@ -27,7 +27,7 @@ app.get('/weather', getWeather);
 app.get('/yelp', getYelp);
 app.get('/meetups', getMeetups);
 app.get('/movies', getMovies);
-// app.get('/trails', getTrails);
+app.get('/trails', getTrails);
 
 // Make sure the server is listening for requests
 app.listen(PORT, () => console.log(`City Explorer Backend is up on ${PORT}`));
@@ -279,6 +279,49 @@ function getMovies(request, response) {
             });
 
             response.send(movieSummaries);
+          })
+          .catch(error => handleError(error, response));
+      }
+    })
+}
+
+function getTrails(request, response) {
+
+  // TODO: Create an object to hold the SQL query info
+  let sqlInfo = {
+    id: request.query.data.id,
+    endpoint: 'trail',
+  }
+
+  // TODO: Get the Data and process it
+  getData(sqlInfo)
+    .then(data => checkTimeouts(sqlInfo, data))
+    .then(result => {
+      if (result) { response.send(result.rows) }
+      else {
+        const url = `https://www.hikingproject.com/data/get-trails?lat=${request.query.data.latitude}&lon=${request.query.data.longitude}&maxDistance=200&key=${process.env.HIKING_API_KEY}`;
+
+        console.log('trails', url);
+
+        superagent.get(url)
+          .then(result => {
+            const trailConditions = result.body.trails.map(trail => {
+              const condition = new Trail(trail);
+              condition.id = sqlInfo.id;
+
+              const SQL = `INSERT INTO trails (name, location, length, stars, star_votes, summary, trail_url, conditions, condition_date, condition_time, created_at, location_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12);`;
+              const values = Object.values(condition);
+
+              client.query(SQL, values);
+
+
+
+
+
+              return condition;
+            });
+
+            response.send(trailConditions);
           })
           .catch(error => handleError(error, response));
       }
