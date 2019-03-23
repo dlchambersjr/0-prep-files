@@ -92,10 +92,7 @@ function getData(sqlInfo) {
 // NOTE: the names are singular so they can be dynamically used
 // The weather timeout MUST be 15 seconds for this lab. You can change
 // The others as you see fit... or not.
-const SQL = `INSERT INTO ${this.tableName} (name, location, length, stars, star_votes, summary, trail_url, conditions, condition_date, condition_time, created_at, location_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12);`;
-const values = [this.name, this.location, this.length, this.stars, this.star_votes, this.summary, this.trail_url, this.conditions, this.condition_date, this.condition_time, this.created_at, location_id];
 
-client.query(SQL, values);
 const timeouts = {
   weather: 15 * 1000, // 15-seconds
   yelp: 24 * 1000 * 60 * 60, // 24-Hours
@@ -308,10 +305,6 @@ function getTrails(request, response) {
               const values = Object.values(condition);
 
               client.query(SQL, values);
-
-
-
-
 
               return condition;
             });
