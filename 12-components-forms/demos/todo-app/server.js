@@ -13,7 +13,7 @@ const PORT = process.env.PORT || 3000;
 
 // Express middleware
 // Utilize ExpressJS functionality to parse the body of the request
-app.use(express.urlencoded({extended: true}));
+app.use(express.urlencoded({ extended: true }));
 // Specify a directory for static resources
 app.use(express.static('./public'));
 
@@ -28,7 +28,11 @@ app.set('view engine', 'ejs');
 // API Routes
 app.get('/', getTasks);
 
+// locahost:3000/tasks/1
+
 app.get('/tasks/:task_id', getOneTask);
+
+
 
 app.get('/add', showForm);
 
@@ -45,18 +49,24 @@ function getTasks(request, response) {
   let SQL = 'SELECT * from tasks;';
 
   return client.query(SQL)
-    .then(results => response.render('index', {results: results.rows}))
+    .then(results => {
+      console.log(results);
+      response.render('index', { results: results.rows })
+    })
     .catch(handleError);
 }
 
 function getOneTask(request, response) {
+
+  console.log('TASK ID = ', request.params.task_id);
+
   let SQL = 'SELECT * FROM tasks WHERE id=$1;';
   let values = [request.params.task_id];
 
   return client.query(SQL, values)
     .then(result => {
       // console.log('single', result.rows[0]);
-      return response.render('pages/detail-view', {task: result.rows[0]});
+      return response.render('pages/detail-view', { task: result.rows[0] });
     })
     .catch(err => handleError(err, response));
 }
@@ -67,16 +77,19 @@ function showForm(request, response) {
 
 function addTask(request, response) {
   console.log(request.body);
-  let {title, description, category, contact, status} = request.body;
+  let { title, description, category, contact, status } = request.body;
 
   let SQL = 'INSERT INTO tasks(title, description, category, contact, status) VALUES ($1, $2, $3, $4, $5);';
   let values = [title, description, category, contact, status];
 
   return client.query(SQL, values)
-    .then(response.redirect('/'))
+    .then(result => {
+      console.log(result);
+      response.redirect('/')
+    })
     .catch(err => handleError(err, response));
 }
 
 function handleError(error, response) {
-  response.render('pages/error-view', {error: 'Uh Oh'});
+  response.render('pages/error-view', { error: 'Uh Oh' });
 }
