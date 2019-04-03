@@ -1,0 +1,13 @@
+i {
+  margin-left: 25px;
+}
+
+i.fa-search {
+  font-size: 200%;
+  color: rgb(248, 93, 46);
+}
+
+i.fa-twitter {
+  font-size: 5vw;
+  color: lightskyblue;
+}
