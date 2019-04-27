@@ -3,8 +3,8 @@
 CREATE TABLE IF NOT EXISTS
 students(
   id SERIAL PRIMARY KEY NOT NULL,
-  first_name VARCHAR(256) NOT NULL,
-  last_name VARCHAR(256) NOT NULL,
+  first_name VARCHAR(50) NOT NULL,
+  last_name VARCHAR(50) NOT NULL,
   city VARCHAR(25),
   miles NUMERIC (3,1),
 );
@@ -29,7 +29,6 @@ UPDATE students SET city='Seattle' WHERE id=3;
 -- DELETE RECORDS
 
 DELETE FROM students WHERE id=4;
-
 
 -- DELETE TABLE
 DROP TABLE students;
