@@ -87,6 +87,10 @@ div section:nth-child(4) img {
   text-align: center;
 }
 
+form {
+  margin: 10px auto;
+}
+
 .hide {
   display: none;
 }

@@ -1,15 +1,41 @@
 'use strict';
 
 let __API_URL__;
+let GEOCODE_API_KEY;
 
-$('#url-form').on('submit', function (event) {
-  event.preventDefault();
-  __API_URL__ = $('#back-end-url').val();
-  $('#url-form').addClass('hide');
-  $('#search-form').removeClass('hide');
-});
+function setEventListeners() {
+  $('#url-form').on('submit', function (event) {
+    event.preventDefault();
+    __API_URL__ = $('#back-end-url').val();
+    $('#url-form').addClass('hide');
+    manageForms();
+  });
 
-$('#search-form').on('submit', fetchCityData);
+  $('#geocode-form').on('submit', function (event) {
+    event.preventDefault();
+    GEOCODE_API_KEY = $('#api-key').val();
+    storeKey(GEOCODE_API_KEY);
+    $('#geocode-form').addClass('hide');
+    manageForms();
+  });
+
+  $('#search-form').on('submit', fetchCityData);
+}
+
+function getKey() {
+  if (localStorage.getItem('geocode')) return JSON.parse(localStorage.getItem('geocode'));
+}
+
+function storeKey(key) {
+  localStorage.setItem('geocode', JSON.stringify(key));
+}
+
+function manageForms() {
+  let urlState = $('#url-form').hasClass('hide');
+  let keyState = $('#geocode-form').hasClass('hide');
+
+  if (urlState && keyState) { $('#search-form').removeClass('hide'); }
+}
 
 function fetchCityData(event) {
   event.preventDefault();
@@ -25,8 +51,8 @@ function fetchCityData(event) {
       getResource('weather', location);
       getResource('movies', location);
       getResource('yelp', location);
-      getResource('meetups', location);
       getResource('trails', location);
+      getResource('events', location);
     })
     .catch(error => {
       compileTemplate([error], 'error-container', 'error-template');
@@ -42,7 +68,7 @@ function displayMap(location) {
   $('section, div').removeClass('hide');
 
   $('#map').attr('src', `https://maps.googleapis.com/maps/api/staticmap?center=${location.latitude}%2c%20${location.longitude}&zoom=13&size=600x300&maptype=roadmap
-  &key=${SPECIAL}`);
+  &key=${GEOCODE_API_KEY}`);
 }
 
 function getResource(resource, location) {
@@ -79,6 +105,7 @@ function renderTimeTemplate(input, sectionClass) {
 }
 
 function calculateAge(created_at) {
+  if (!created_at) return 'TBD';
   let age = Date.now() - created_at;
   if (age > 86400000) {
     return `Updated : ${Math.floor(age / (86400000))} days ago`;
@@ -94,3 +121,9 @@ function calculateAge(created_at) {
   }
   return 'Just updated';
 }
+
+$(() => {
+  setEventListeners();
+  GEOCODE_API_KEY = getKey();
+  if (GEOCODE_API_KEY) { $('#geocode-form').addClass('hide'); }
+});

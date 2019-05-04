@@ -1,5 +1,5 @@
 {
-  "name": "static-buildout",
+  "name": "lab-09-demo",
   "version": "1.0.0",
   "description": "",
   "main": "server.js",
@@ -8,12 +8,12 @@
     "start": "node server.js"
   },
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "dependencies": {
-    "cors": "^2.8.4",
-    "dotenv": "^6.0.0",
-    "express": "^4.16.3",
-    "pg": "^7.4.3",
-    "superagent": "^3.8.3"
+    "cors": "^2.8.5",
+    "dotenv": "^7.0.0",
+    "express": "^4.16.4",
+    "pg": "^7.9.0",
+    "superagent": "^4.1.0"
   }
 }

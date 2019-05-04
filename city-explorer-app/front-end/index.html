@@ -33,12 +33,12 @@
     </li>
   </script>
 
-  <!-- Template for Meetup data -->
-  <script type="text/x-handlebars-template" id="meetups-results-template">
+  <!-- Template for Eventbrite data -->
+  <script type="text/x-handlebars-template" id="events-results-template">
     <li>
       <a href="{{ link }}">{{ name }}</a>
-      <p>Hosted by: {{ host }}</p>
-      <p>Created on: {{ creation_date }}</p>
+      <p>Event Date: {{ event_date }}</p>
+      <p>{{ summary }}</p>
     </li>
   </script>
 
@@ -66,12 +66,17 @@
 <body>
   <header>
     <h1>City Explorer</h1>
-    <p>Enter a location below to learn about the weather, events, restaurants, movies filmed there, and more!</p>
+    <p>Enter a location below to learn about the weather, events, restaurants, movies, and more!</p>
   </header>
   <main>
     <form id="url-form">
       <label>Enter the URL to your deployed back end, making sure to remove the trailing forward slash</label>
       <input type="text" id="back-end-url">
+    </form>
+
+    <form id="geocode-form">
+      <label>Enter your Geocoding API Key:</label>
+      <input type="text" id="api-key">
     </form>
 
     <form id="search-form" class="hide">
@@ -99,10 +104,10 @@
         </ul>
       </section>
 
-      <!-- Section for Meetup data -->
+      <!-- Section for Eventbrite data -->
       <section>
-        <h3>Results from the Meetup API</h3>
-        <ul class="meetups-results"></ul>
+        <h3>Results from the Eventbrite API</h3>
+        <ul class="events-results"></ul>
       </section>
 
       <!-- Section for movie data -->
@@ -122,7 +127,6 @@
   </footer>
   <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/handlebars.js/4.0.11/handlebars.min.js"></script>
-  <script src="./scripts/variable-def.js"></script>
   <script src="./scripts/app.js"></script>
 </body>
 
