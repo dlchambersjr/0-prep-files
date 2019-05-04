@@ -1,4 +1,4 @@
-DROP TABLE IF EXISTS weathers, yelps, movies, meetups, trails, locations;
+DROP TABLE IF EXISTS weathers, yelps, movies, events, trails, locations;
 
 CREATE TABLE IF NOT EXISTS locations ( 
     id SERIAL PRIMARY KEY,
@@ -40,15 +40,15 @@ CREATE TABLE IF NOT EXISTS weathers (
     location_id INTEGER NOT NULL REFERENCES locations(id)
   );
   
-  CREATE TABLE IF NOT EXISTS meetups (
-    id SERIAL PRIMARY KEY,
-    link VARCHAR(255),
-    name VARCHAR(255),
-    creation_date CHAR(15),
-    host VARCHAR(255),
-    created_at BIGINT,
-    location_id INTEGER NOT NULL REFERENCES locations(id)
-  );
+CREATE TABLE IF NOT EXISTS events (
+  id SERIAL PRIMARY KEY, 
+  link VARCHAR(255), 
+  name VARCHAR(255), 
+  summary VARCHAR(1000),
+  event_date CHAR(15), 
+  created_at BIGINT,
+  location_id INTEGER NOT NULL REFERENCES locations(id) 
+);
   
   CREATE TABLE IF NOT EXISTS trails ( 
     id SERIAL PRIMARY KEY,

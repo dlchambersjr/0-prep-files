@@ -1,35 +1,33 @@
 'use strict';
 
-// Load Environment Variables from the .env file
+// PROVIDE ACCESS TO ENVIRONMENT VARIABLES IN .env
 require('dotenv').config();
 
-// Application Dependencies
+// LOAD APPLICATION DEPENDENCIES
 const express = require('express');
 const cors = require('cors');
-const superagent = require('superagent')
+const superagent = require('superagent');
 const pg = require('pg');
 
-// Application Setup
-const PORT = process.env.PORT || 3000;
+// APPLICATION SETUP
 const app = express();
-
-// Middleware
 app.use(cors());
+const PORT = process.env.PORT;
 
-// Create the client connection to the DB
+//CONNECT TO DATABASE
 const client = new pg.Client(process.env.DATABASE_URL);
 client.connect();
-client.on('error', err => console.error(err));
+client.on('error', err => console.log(err));
 
-// API Routes
+// API ROUTES
 app.get('/location', searchToLatLong);
 app.get('/weather', getWeather);
+app.get('/events', getEvents);
 app.get('/yelp', getYelp);
-app.get('/meetups', getMeetups);
 app.get('/movies', getMovies);
 app.get('/trails', getTrails);
 
-// Make sure the server is listening for requests
+// TURN THE SERVER ON
 app.listen(PORT, () => console.log(`City Explorer Backend is up on ${PORT}`));
 
 // ERROR HANDLER
@@ -38,79 +36,61 @@ function handleError(err, res) {
   if (res) res.status(500).send('Sorry, something went wrong');
 }
 
-// Helper Functions and Data Models
+// HELPER FUNCTIONS
 
-// Lookup the location information
-function searchToLatLong(request, response) {
-  let query = request.query.data;
-  let sql = `SELECT * FROM locations WHERE search_query=$1;`
-  let values = [query];
+function getDataFromDB(sqlInfo) {
+  let condition = '';
+  let values = [];
 
-  client.query(sql, values)
-    .then(result => {
-      if (result.rowCount > 0) {
-        console.log('LOCATION FROM SQL');
-        response.send(result.rows[0]);
-      } else {
-        const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${request.query.data}&key=${process.env.GEOCODE_API_KEY}`;
+  if (sqlInfo.searchQuery) {
+    condition = 'search_query';
+    values = [sqlInfo.searchQuery];
+  } else {
+    condition = 'location_id';
+    values = [sqlInfo.id];
+  }
 
-        superagent.get(url)
-          .then(data => {
-            console.log('LOCATION FROM API');
-            if (!data.body.results.length) { throw 'NO DATA' }
-            else {
-              let location = new Location(query, data.body.results[0]);
+  let sql = `SELECT * FROM ${sqlInfo.endpoint}s WHERE ${condition}=$1;`;
 
-              let newSql = `INSERT INTO locations (search_query, formatted_query, latitude, longitude) VALUES($1, $2, $3, $4) RETURNING id;`;
-              let newValues = Object.values(location);
-
-              client.query(newSql, newValues)
-                .then(result => {
-                  location.id = result.rows[0].id;
-                  response.send(location);
-                })
-            }
-          })
-          .catch(error => handleError(error, response));
-      }
-    })
-}
-
-//TODO: Get the SQL data for the requested resource
-function getData(sqlInfo) {
-  let sql = `SELECT * FROM ${sqlInfo.endpoint}s WHERE location_id=$1;`
-  let values = [sqlInfo.id];
-
-  console.log('GETTING DATA FOR: ', sqlInfo.endpoint); //Debugging only
-
-  // Return the data
   try { return client.query(sql, values); }
-  catch (error) { handleError(error) }
+  catch (error) { handleError(error); }
 }
 
-// TODO: Establish the length of time to keep data for each resource
-// NOTE: the names are singular so they can be dynamically used
-// The weather timeout MUST be 15 seconds for this lab. You can change
-// The others as you see fit... or not.
+function saveDataToDB(sqlInfo) {
+  let params = [];
 
-const timeouts = {
-  weather: 15 * 1000, // 15-seconds
-  yelp: 24 * 1000 * 60 * 60, // 24-Hours
-  movie: 30 * 1000 * 60 * 60 * 24, // 30-Days
-  meetup: 6 * 1000 * 60 * 60, // 6-Hours
-  trail: 7 * 1000 * 60 * 60 * 24 // 7-Days
-};
+  for (let i = 1; i <= sqlInfo.values.length; i++) {
+    params.push(`$${i}`);
+  }
 
-// TODO: Check to see if the data is still valid
+  let sqlParams = params.join();
+  let sql = '';
+
+  if (sqlInfo.searchQuery) {
+    // location
+    sql = `INSERT INTO ${sqlInfo.endpoint}s (${sqlInfo.columns}) VALUES (${sqlParams}) RETURNING ID;`;
+  } else {
+    // all other endpoints
+    sql = `INSERT INTO ${sqlInfo.endpoint}s (${sqlInfo.columns}) VALUES (${sqlParams});`;
+  }
+
+  try { return client.query(sql, sqlInfo.values); }
+  catch (err) { handleError(err); }
+}
+
 function checkTimeouts(sqlInfo, sqlData) {
+
+  const timeouts = {
+    weather: 15 * 1000, // 15-seconds
+    yelp: 24 * 1000 * 60 * 60, // 24-Hours
+    movie: 30 * 1000 * 60 * 60 * 24, // 30-Days
+    event: 6 * 1000 * 60 * 60, // 6-Hours
+    trail: 7 * 1000 * 60 * 60 * 24 // 7-Days
+  };
 
   // if there is data, find out how old it is.
   if (sqlData.rowCount > 0) {
     let ageOfResults = (Date.now() - sqlData.rows[0].created_at);
-
-    // For debugging only
-    console.log(sqlInfo.endpoint, ' AGE:', ageOfResults);
-    console.log(sqlInfo.endpoint, ' Timeout:', timeouts[sqlInfo.endpoint]);
 
     // Compare the age of the results with the timeout value
     // Delete the data if it is old
@@ -120,61 +100,126 @@ function checkTimeouts(sqlInfo, sqlData) {
       client.query(sql, values)
         .then(() => { return null; })
         .catch(error => handleError(error));
-    } else { return sqlData }
+    } else { return sqlData; }
   }
 }
 
-// Retrieve the Weather based on location
+function searchToLatLong(request, response) {
+  let sqlInfo = {
+    searchQuery: request.query.data,
+    endpoint: 'location'
+  };
+
+  getDataFromDB(sqlInfo)
+    .then(result => {
+      if (result.rowCount > 0) {
+        response.send(result.rows[0]);
+      } else {
+        const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${request.query.data}&key=${process.env.GEOCODE_API_KEY}`;
+
+        superagent.get(url)
+          .then(result => {
+            if (!result.body.results.length) { throw 'NO DATA'; }
+            else {
+              let location = new Location(sqlInfo.searchQuery, result.body.results[0]);
+
+              sqlInfo.columns = Object.keys(location).join();
+              sqlInfo.values = Object.values(location);
+
+              saveDataToDB(sqlInfo)
+                .then(data => {
+                  location.id = data.rows[0].id;
+                  response.send(location);
+                });
+            }
+          })
+          .catch(error => handleError(error, response));
+      }
+    });
+}
+
 function getWeather(request, response) {
 
-  // TODO: Create an object to hold the SQL query info
   let sqlInfo = {
     id: request.query.data.id,
-    endpoint: 'weather',
-  }
+    endpoint: 'weather'
+  };
 
-  // TODO: Get the Data and process it
-  getData(sqlInfo)
+  getDataFromDB(sqlInfo)
     .then(data => checkTimeouts(sqlInfo, data))
     .then(result => {
-      if (result) { response.send(result.rows) }
+      if (result) { response.send(result.rows); }
       else {
         const url = `https://api.darksky.net/forecast/${process.env.WEATHER_API_KEY}/${request.query.data.latitude},${request.query.data.longitude}`;
 
-        superagent.get(url)
+        return superagent.get(url)
           .then(weatherResults => {
+            console.log('Weather from API');
             if (!weatherResults.body.daily.data.length) { throw 'NO DATA'; }
             else {
-              // Process the data through the constructor to be returned to the client
               const weatherSummaries = weatherResults.body.daily.data.map(day => {
                 let summary = new Weather(day);
-                summary.id = sqlInfo.id;
+                summary.location_id = sqlInfo.id;
 
-                // Insert into SQL database
-                let newSql = `INSERT INTO weathers (forecast, time, created_at, location_id) VALUES($1, $2, $3, $4);`;
-                let newValues = Object.values(summary);
-                client.query(newSql, newValues);
+                sqlInfo.columns = Object.keys(summary).join();
+                sqlInfo.values = Object.values(summary);
 
+                saveDataToDB(sqlInfo);
                 return summary;
               });
               response.send(weatherSummaries);
             }
-          });
+          })
+          .catch(error => handleError(error, response));
       }
-    })
-    .catch(error => handleError(error));
+    });
+}
+
+function getEvents(request, response) {
+
+  let sqlInfo = {
+    id: request.query.data.id,
+    endpoint: 'event'
+  };
+
+  getDataFromDB(sqlInfo)
+    .then(data => checkTimeouts(sqlInfo, data))
+    .then(result => {
+      if (result) { response.send(result.rows); }
+      else {
+        const url = `https://www.eventbriteapi.com/v3/events/search?token=${process.env.EVENTBRITE_API_KEY}&location.address=${request.query.data.formatted_query}`;
+
+        superagent.get(url)
+          .then(result => {
+            const events = result.body.events.map(eventData => {
+              const event = new Event(eventData);
+              event.location_id = sqlInfo.id;
+
+              sqlInfo.columns = Object.keys(event).join();
+              sqlInfo.values = Object.values(event);
+
+              saveDataToDB(sqlInfo);
+
+              return event;
+            });
+
+            response.send(events);
+          })
+          .catch(error => handleError(error, response));
+      }
+    });
 }
 
 function getYelp(request, response) {
 
-  // TODO: Create an object to hold the SQL query info
+  // Create an object to hold the SQL query info
   let sqlInfo = {
     id: request.query.data.id,
     endpoint: 'yelp',
   }
 
-  // TODO: Get the Data and process it
-  getData(sqlInfo)
+  // Get the Data and process it
+  getDataFromDB(sqlInfo)
     .then(data => checkTimeouts(sqlInfo, data))
     .then(result => {
       if (result) { response.send(result.rows) }
@@ -188,12 +233,13 @@ function getYelp(request, response) {
             else {
               const yelpReviews = yelpResults.body.businesses.map(business => {
                 let review = new Yelp(business);
-                review.id = sqlInfo.id;
+                review.location_id = sqlInfo.id;
 
-                let sql = `INSERT INTO yelps (name, image_url, price, rating, url, created_at, location_id) VALUES ($1, $2, $3, $4, $5, $6, $7);`;
+                // Insert into SQL database
+                sqlInfo.columns = Object.keys(review).join();
+                sqlInfo.values = Object.values(review);
 
-                let values = Object.values(review);
-                client.query(sql, values);
+                saveDataToDB(sqlInfo);
 
                 return review;
               });
@@ -205,53 +251,14 @@ function getYelp(request, response) {
     .catch(error => handleError(error));
 }
 
-function getMeetups(request, response) {
-
-  // TODO: Create an object to hold the SQL query info
-  let sqlInfo = {
-    id: request.query.data.id,
-    endpoint: 'meetup',
-  }
-
-  // TODO: Get the Data and process it
-  getData(sqlInfo)
-    .then(data => checkTimeouts(sqlInfo, data))
-    .then(result => {
-      if (result) { response.send(result.rows) }
-      else {
-        const url = `https://api.meetup.com/find/upcoming_events?&sign=true&photo-host=public&lon=${request.query.data.longitude}&page=20&lat=${request.query.data.latitude}&key=${process.env.MEETUP_API_KEY}`;
-
-        superagent.get(url)
-          .then(result => {
-            const meetups = result.body.events.map(meetup => {
-              const event = new Meetup(meetup);
-
-              event.id = sqlInfo.id;
-
-              const SQL = `INSERT INTO meetups (link, name, creation_date, host, created_at, location_id) VALUES ($1, $2, $3, $4, $5, $6);`;
-              const values = Object.values(event);
-
-              client.query(SQL, values);
-
-              return event;
-            });
-            response.send(meetups);
-          })
-          .catch(error => handleError(error));
-      }
-    })
-}
-
 function getMovies(request, response) {
 
-  // TODO: Create an object to hold the SQL query info
   let sqlInfo = {
     id: request.query.data.id,
     endpoint: 'movie',
   }
 
-  // TODO: Get the Data and process it
-  getData(sqlInfo)
+  getDataFromDB(sqlInfo)
     .then(data => checkTimeouts(sqlInfo, data))
     .then(result => {
       if (result) { response.send(result.rows) }
@@ -262,12 +269,12 @@ function getMovies(request, response) {
           .then(result => {
             const movieSummaries = result.body.results.map(movie => {
               const summary = new Movie(movie);
-              summary.id = sqlInfo.id;
+              summary.location_id = sqlInfo.id;
 
-              const SQL = `INSERT INTO movies (title, overview, average_votes, total_votes, image_url, popularity, released_on, created_at, location_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);`;
-              const values = Object.values(summary);
+              sqlInfo.columns = Object.keys(summary).join();
+              sqlInfo.values = Object.values(summary);
 
-              client.query(SQL, values);
+              saveDataToDB(sqlInfo);
 
               return summary;
             });
@@ -281,14 +288,12 @@ function getMovies(request, response) {
 
 function getTrails(request, response) {
 
-  // TODO: Create an object to hold the SQL query info
   let sqlInfo = {
     id: request.query.data.id,
     endpoint: 'trail',
   }
 
-  // TODO: Get the Data and process it
-  getData(sqlInfo)
+  getDataFromDB(sqlInfo)
     .then(data => checkTimeouts(sqlInfo, data))
     .then(result => {
       if (result) { response.send(result.rows) }
@@ -299,13 +304,12 @@ function getTrails(request, response) {
           .then(result => {
             const trailConditions = result.body.trails.map(trail => {
               const condition = new Trail(trail);
-              condition.id = sqlInfo.id;
+              condition.location_id = sqlInfo.id;
 
-              const SQL = `INSERT INTO trails (name, location, length, stars, star_votes, summary, trail_url, conditions, condition_date, condition_time, created_at, location_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12);`;
-              const values = Object.values(condition);
+              sqlInfo.columns = Object.keys(condition).join();
+              sqlInfo.values = Object.values(condition);
 
-              client.query(SQL, values);
-
+              saveDataToDB(sqlInfo);
               return condition;
             });
 
@@ -316,7 +320,7 @@ function getTrails(request, response) {
     })
 }
 
-// Data Models
+//DATA MODELS
 function Location(query, location) {
   this.search_query = query;
   this.formatted_query = location.formatted_address;
@@ -327,7 +331,14 @@ function Location(query, location) {
 function Weather(day) {
   this.forecast = day.summary;
   this.time = new Date(day.time * 1000).toString().slice(0, 15);
-  this.created_at = Date.now(); //TODO: Don't forget to update the schema.sql file
+  this.created_at = Date.now();
+}
+
+function Event(event) {
+  this.link = event.url;
+  this.name = event.name.text;
+  this.event_date = new Date(event.start.local).toString().slice(0, 15);
+  this.summary = event.summary;
 }
 
 function Yelp(business) {
@@ -337,15 +348,6 @@ function Yelp(business) {
   this.price = business.price;
   this.rating = business.rating;
   this.url = business.url;
-  this.created_at = Date.now();
-}
-
-function Meetup(meetup) {
-  // this.tableName = 'meetups';
-  this.link = meetup.link;
-  this.name = meetup.group.name;
-  this.creation_date = new Date(meetup.group.created).toString().slice(0, 15);
-  this.host = meetup.group.who;
   this.created_at = Date.now();
 }
 
