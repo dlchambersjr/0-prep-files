@@ -1,38 +1,36 @@
 'use strict'
 
+// Environment variables
+require('dotenv').config();
+
 // Application Dependencies
 const express = require('express');
 const pg = require('pg');
 
-// Environment variables
-require('dotenv').config();
-
 // Application Setup
 const app = express();
 const PORT = process.env.PORT || 3000;
-
-// Express middleware
-// Utilize ExpressJS functionality to parse the body of the request
-app.use(express.urlencoded({ extended: true }));
-// Specify a directory for static resources
-app.use(express.static('./public'));
 
 // Database Setup
 const client = new pg.Client(process.env.DATABASE_URL);
 client.connect();
 client.on('error', err => console.error(err));
 
+// Express middleware
+// Utilize ExpressJS functionality to parse the body of the request
+app.use(express.urlencoded({ extended: true }));
+
 // Set the view engine for server-side templating
 app.set('view engine', 'ejs');
+
+// Specify a directory for static resources
+app.use(express.static('./public'));
 
 // API Routes
 app.get('/', getTasks);
 
 // locahost:3000/tasks/1
-
 app.get('/tasks/:task_id', getOneTask);
-
-
 
 app.get('/add', showForm);
 
@@ -50,7 +48,7 @@ function getTasks(request, response) {
 
   return client.query(SQL)
     .then(results => {
-      console.log(results);
+      console.log(results.rows);
       response.render('index', { results: results.rows })
     })
     .catch(handleError);
@@ -91,5 +89,5 @@ function addTask(request, response) {
 }
 
 function handleError(error, response) {
-  response.render('pages/error-view', { error: 'Uh Oh' });
+  response.render('pages/error-view', { error: 'Uh Oh - Something when wrong...' });
 }
